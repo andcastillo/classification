@@ -1,0 +1,212 @@
+---
+title: "KDD taller 1"
+output: html_notebook
+---
+
+Primero cargamos los datos.
+
+```{r}
+data <- read.csv("Classification.csv", row.names = "EmployeeNumber")
+```
+
+Eliminamos las variables que no sirven y convertimos a los tipos de datos adecuados. Esto se hace inspeccionando el conjunto de datos en Kaggle
+
+```{r}
+
+numericColumns <- c("Age", "HourlyRate", "DailyRate", "DistanceFromHome", "HourlyRate", "MonthlyIncome", "MonthlyRate", "PercentSalaryHike",  "TotalWorkingYears", "TrainingTimesLastYear", "YearsAtCompany", "YearsInCurrentRole", "YearsSinceLastPromotion", "YearsWithCurrManager" )
+factorColumns <- c("Attrition", "Department", "BusinessTravel", "EducationField", "Gender", "JobRole", "OverTime"  )
+levelColumns <- c("Education", "EnvironmentSatisfaction", "JobInvolvement", "JobLevel", "JobSatisfaction", "NumCompaniesWorked", "PerformanceRating", "RelationshipSatisfaction", "StockOptionLevel", "WorkLifeBalance")
+
+#Convert to numeric attributes
+for (name in numericColumns) {
+  data[[name]] <- as.numeric(data[[name]])
+}
+
+#Conver to factors
+for (name in factorColumns) {
+  data[[name]] <- as.factor(data[[name]])
+}
+
+#Conver to levels
+for (name in levelColumns) {
+  data[[name]] <- ordered(data[[name]]);
+}
+
+data$EmployeeCount <- NULL
+#data$EmployeeNumber <-NULL
+data$MaritalStatus <-NULL
+
+data$class <- NULL
+
+```
+
+Veamos la distribución de nuestro atributo objetivo
+```{r}
+par(mfrow=c(1,2))
+pie(table(data$JobSatisfaction))
+pie(table(data$class))
+```
+Revizamos las distribuciones de las variables numèricas
+
+```{r}
+for (col in numericColumns) {
+    hist(data[[col]], main = col, xlab = col)
+}
+```
+Observamos la distribuciòn de la variable objetivo para cada uno de los atributos numèricos
+```{r}
+for (col in numericColumns) {
+   boxplot(data[[col]]~JobSatisfaction, data = data, ylab = col)
+}
+
+```
+
+Visualizamos nuestros atributos ordinales
+```{r}
+
+for (col in factorColumns) {
+   pie(table(data[[col]]), main = col)
+}
+```
+
+
+Visualizamos nuestros atributos nominales
+```{r}
+for (col in levelColumns) {
+   pie(table(data[[col]]), main = col)
+}
+```
+
+
+```{r}
+library(plotly)
+p <- plot_ly(data, labels = ~JobSatisfaction, values = ~JobSatisfaction, type = 'pie') %>%
+  layout(title = 'Satisfaccion en el trabajo',
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+```
+
+Visualizamos algunas variables contra la variable objetivo V1
+
+```{r}
+
+factorColumns <- c("Attrition", "Department", "BusinessTravel",
+                   "EducationField", "Gender", "JobRole",
+                   "MaritalStatus", "OverTime")
+
+bar_plot <- function(name) {
+ 
+  colnames(data)[colnames(data) == name] <- "name"
+  freq.cols <- as.data.frame(table(data[, c("name", "JobSatisfaction")]))
+ 
+  barplot(Freq ~ JobSatisfaction + name, data = freq.cols,
+          main = "", ylab = name, legend = TRUE)
+}
+
+bar_plot(factorColumns[1])
+
+```
+
+Visualizamos algunas variables contra la variable objetivo V2
+
+```{r}
+
+for (name in factorColumns) {
+  if(!is.null(data[[name]])){
+    with(data, plot(data[[name]], JobSatisfaction, ylab = "Job Satisfation", xlab = name, col = JobSatisfaction, pch = as.numeric(JobSatisfaction)))
+  }
+}
+
+```
+
+```{r}
+library(ggplot2)
+qplot(Age, EnvironmentSatisfaction, data = data, colour = JobSatisfaction)
+qplot(Age, EnvironmentSatisfaction, data = data, colour = class)
+```
+```{r}
+qplot(Age, MonthlyIncome, data = data, colour = JobSatisfaction)
+qplot(Age, MonthlyIncome, data = data, colour = class)
+```
+```{r}
+qplot(MonthlyIncome, WorkLifeBalance, data = data, colour = JobSatisfaction)
+qplot(MonthlyIncome, WorkLifeBalance, data = data, colour = class)
+```
+
+Aplicamos PCA para los atributos numéricos
+
+```{r}
+data.pca <- prcomp(data[, numericColumns], center = TRUE, scale. = TRUE);
+```
+Ahora ploteamos con respecto a las variables reducidas
+```{r}
+library(ggplot2)
+x <- as.data.frame(data.pca$x)
+qplot(PC1, PC2, data = x, colour = data$JobSatisfaction)
+
+```
+
+Hacemos pruebas de independencia 
+```{r}
+library(MASS)
+tbl <- table(data$BusinessTravel, data$class)
+tbl
+chisq.test(tbl)
+```
+
+
+
+Partimos el conjunto en entrenamiento 80% y test 20%
+
+```{r}
+ind <- sample(2, nrow(data), replace = TRUE, prob = c(0.8, 0.2) )
+training<- data[ind==1,]
+test<- data[ind==2,]
+
+#training$MaritalStatus <- factor(training$MaritalStatus, levels = c("Single", "Married", "Divorced"))
+#test$MaritalStatus <- factor(test$MaritalStatus, levels = c("Single", "Married", "Divorced"))
+
+
+```
+
+Entrenamos un clasificador bayesiano ingenuo
+
+```{r}
+library(naivebayes)
+model1 <- naive_bayes(JobSatisfaction ~ ., data = training)
+
+```
+Evaluamos el modelo
+
+```{r}
+library(caret)
+pred<- predict(model1 , test)
+tab <- table(test$JobSatisfaction, pred, dnn = c("Actual", "Predicha"))
+confusionMatrix(tab)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
